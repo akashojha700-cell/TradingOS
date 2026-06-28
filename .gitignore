@@ -1,0 +1,89 @@
+# ---------------------------------------------------------------------------
+# TradingOS - Git ignore rules
+# ---------------------------------------------------------------------------
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ----- Virtual environments -----
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ----- Test / coverage -----
+.pytest_cache/
+pytest-cache-files-*/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ----- Linters / type checkers -----
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ----- IDE / Editor -----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----- Environment / secrets -----
+.env
+.env.*
+!.env.example
+
+# ----- Application data -----
+storage/*.db
+storage/*.db-journal
+storage/*.sqlite
+storage/*.sqlite3
+logs/*.log
+logs/*.log.*
+
+# ----- Docker -----
+*.pid
+
+# ----- Reference material kept outside repo -----
+# Project charter, architecture, roadmap etc. live as Markdown in docs/.
+# PDFs are explicitly out — they are not searchable, editable, or version-friendly.
+*.pdf
+
+# ----- Misc -----
+*.bak
+*.tmp

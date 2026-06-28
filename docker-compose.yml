@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# TradingOS - Local development orchestration
+# Run with:  docker compose up --build
+# ---------------------------------------------------------------------------
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tradingos:latest
+    container_name: tradingos-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Safe defaults if .env is missing
+      APP_NAME: ${APP_NAME:-TradingOS}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      APP_ENV: ${APP_ENV:-development}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/storage/tradingos.db}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-false}
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
