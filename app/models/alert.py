@@ -1,14 +1,14 @@
 """Alert ORM model.
 
 An ``Alert`` is a market event ingested from an external source (currently
-TradingView via webhook). The model stores both the parsed, queryable fields
-and the original raw payload — the raw copy is retained so we can replay or
-debug ingest without losing fidelity.
+TradingView via webhook). The model stores:
 
-This is the first ORM model in TradingOS. The Alembic migration scaffold
-will be introduced in the next sprint that needs a schema change; for Sprint 1
-we lean on :func:`app.database.init_db.init_db` and ``Base.metadata.create_all``.
-See ``docs/CTO_NOTES.md`` (T-001) for the deferral note.
+* the required, queryable fields (``symbol``, ``exchange``, ``signal`` ...);
+* the raw payload as JSON (audit + replay);
+* the AI analysis output as JSON (populated by the pipeline immediately
+  after storage);
+* a status flag driving the small state machine
+  ``pending → analyzed → notified → archived``.
 """
 
 from __future__ import annotations
@@ -23,13 +23,13 @@ from app.database import Base
 
 
 def _utc_now_naive() -> datetime:
-    """Return the current UTC time as a naive ``datetime``.
-
-    SQLite stores naive datetimes; we keep a single convention across the
-    codebase: every persisted timestamp is UTC, naive, and ISO 8601 when
-    serialised to JSON.
-    """
+    """UTC ``datetime`` without tzinfo (single project-wide convention)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+# Allowed status values. Kept as a module-level tuple so tests and services
+# can import the canonical list without duplicating string literals.
+ALERT_STATUSES: tuple[str, ...] = ("pending", "analyzed", "notified", "archived")
 
 
 class Alert(Base):
@@ -39,61 +39,77 @@ class Alert(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
+    # ---- Source identification -----------------------------------------
     source: Mapped[str] = mapped_column(
-        String(50),
+        String(50), nullable=False, doc="Source identifier (e.g. 'tradingview')."
+    )
+    symbol: Mapped[str] = mapped_column(
+        String(50), nullable=False, doc="Trading symbol. Stored upper-case."
+    )
+    exchange: Mapped[str] = mapped_column(
+        String(20), nullable=False, doc="Exchange code (e.g. NSE). Upper-case."
+    )
+    signal: Mapped[str] = mapped_column(
+        String(10),
         nullable=False,
-        doc="Source identifier (e.g. 'tradingview').",
+        doc="Signal direction: 'BUY' or 'SELL'.",
     )
-    ticker: Mapped[str] = mapped_column(
-        String(50),
+
+    # ---- Optional descriptive fields -----------------------------------
+    timeframe: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    strategy: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # ---- Timestamps -----------------------------------------------------
+    alert_timestamp: Mapped[Optional[datetime]] = mapped_column(
+        DateTime,
+        nullable=True,
+        doc="Timestamp reported by the source (may differ from ingest time).",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
         nullable=False,
-        doc="Symbol the alert refers to. Stored upper-case.",
+        default=_utc_now_naive,
+        doc="UTC timestamp when the server first stored the row.",
     )
-    action: Mapped[str] = mapped_column(
-        String(50),
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
         nullable=False,
-        doc="Alert action (e.g. 'buy', 'sell', 'alert'). Stored lower-case.",
+        default=_utc_now_naive,
+        onupdate=_utc_now_naive,
+        doc="UTC timestamp updated on every write.",
     )
-    price: Mapped[Optional[float]] = mapped_column(
-        Float,
-        nullable=True,
-        doc="Optional reference price reported with the alert.",
-    )
-    timeframe: Mapped[Optional[str]] = mapped_column(
-        String(20),
-        nullable=True,
-        doc="Optional timeframe identifier (e.g. '5m', '1h', '1D').",
-    )
-    strategy: Mapped[Optional[str]] = mapped_column(
-        String(100),
-        nullable=True,
-        doc="Optional strategy name that fired the alert.",
-    )
-    message: Mapped[Optional[str]] = mapped_column(
-        String,
-        nullable=True,
-        doc="Optional free-text message from the source.",
-    )
+
+    # ---- Raw + derived payloads ----------------------------------------
     raw_payload: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         nullable=False,
         doc="The full original payload, preserved for replay and debugging.",
     )
-    received_at: Mapped[datetime] = mapped_column(
-        DateTime,
+    analysis: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True,
+        doc="AI provider analysis (structure defined by AlertAnalysis schema).",
+    )
+
+    # ---- Lifecycle -----------------------------------------------------
+    status: Mapped[str] = mapped_column(
+        String(20),
         nullable=False,
-        default=_utc_now_naive,
-        doc="UTC timestamp (naive) when the server ingested the alert.",
+        default="pending",
+        doc="Lifecycle status. One of ALERT_STATUSES.",
     )
 
     __table_args__ = (
-        Index("ix_alerts_received_at", "received_at"),
-        Index("ix_alerts_ticker_received", "ticker", "received_at"),
+        Index("ix_alerts_created_at", "created_at"),
+        Index("ix_alerts_symbol_created", "symbol", "created_at"),
+        Index("ix_alerts_signal", "signal"),
+        Index("ix_alerts_status", "status"),
         Index("ix_alerts_source", "source"),
     )
 
     def __repr__(self) -> str:  # pragma: no cover - trivial
         return (
-            f"Alert(id={self.id}, source={self.source!r}, ticker={self.ticker!r}, "
-            f"action={self.action!r}, received_at={self.received_at!r})"
+            f"Alert(id={self.id}, source={self.source!r}, symbol={self.symbol!r}, "
+            f"signal={self.signal!r}, status={self.status!r})"
         )

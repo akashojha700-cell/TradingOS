@@ -1,4 +1,9 @@
-"""Root endpoint — ``GET /``."""
+"""Info endpoint — ``GET /api/v1/info``.
+
+Returns the JSON service banner previously served at ``/``. Moved so that
+the root URL can serve the human-facing UI instead. Kept for developer /
+monitoring use.
+"""
 
 from __future__ import annotations
 
@@ -12,11 +17,11 @@ router = APIRouter(tags=[TAG_SYSTEM])
 
 
 @router.get(
-    "/",
+    "/info",
     response_model=RootResponse,
-    summary="Service banner",
-    description="Returns application metadata and a link to the API docs.",
+    summary="Service banner (JSON)",
+    description="Returns application metadata as JSON.",
 )
-def read_root(service: SystemServiceDep) -> RootResponse:
+def read_info(service: SystemServiceDep) -> RootResponse:
     """Return basic service metadata."""
     return service.root()

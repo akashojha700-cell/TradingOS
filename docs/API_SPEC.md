@@ -7,195 +7,173 @@ All responses are JSON. Every request/response carries an `X-Request-ID` header 
 
 ## Table of Contents
 
+- [Endpoint map](#endpoint-map)
+- [Root: TradingOS Terminal (HTML)](#root-tradingos-terminal-html)
 - [System endpoints](#system-endpoints)
-  - [`GET /`](#get-)
   - [`GET /health`](#get-health)
   - [`GET /version`](#get-version)
+  - [`GET /api/v1/info`](#get-apiv1info)
 - [Webhooks](#webhooks)
-  - [`POST /webhook/tradingview`](#post-webhooktradingview)
+  - [`POST /api/v1/webhook/tradingview`](#post-apiv1webhooktradingview)
 - [Alerts](#alerts)
-  - [`GET /alerts`](#get-alerts)
-  - [`GET /alerts/{alert_id}`](#get-alertsalert_id)
+  - [`GET /api/v1/alerts`](#get-apiv1alerts)
+  - [`GET /api/v1/alerts/recent`](#get-apiv1alertsrecent)
+  - [`GET /api/v1/alerts/{alert_id}`](#get-apiv1alertsalert_id)
+  - [`DELETE /api/v1/alerts/{alert_id}`](#delete-apiv1alertsalert_id)
+- [Statistics](#statistics)
+  - [`GET /api/v1/statistics`](#get-apiv1statistics)
 - [Conventions](#conventions)
+
+---
+
+## Endpoint map
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | **TradingOS web UI** (HTML SPA) |
+| GET | `/health` | Liveness + DB probe |
+| GET | `/version` | Build metadata |
+| GET | `/docs` | Swagger (developer) |
+| GET | `/api/v1/info` | JSON service banner |
+| POST | `/api/v1/webhook/tradingview` | Ingest a TradingView alert |
+| GET | `/api/v1/alerts` | List alerts (paginated, filterable) |
+| GET | `/api/v1/alerts/recent` | Most recent alerts |
+| GET | `/api/v1/alerts/{alert_id}` | Fetch one alert with analysis |
+| DELETE | `/api/v1/alerts/{alert_id}` | Delete an alert |
+| GET | `/api/v1/statistics` | Ingest pipeline summary |
+
+Root URL now serves the human-facing terminal UI. Business endpoints stay under `/api/v1`. System endpoints (`/health`, `/version`, `/docs`) stay at root.
+
+---
+
+## Root: TradingOS Terminal (HTML)
+
+`GET /` returns the TradingOS web application — a single-page React app that talks to the same origin at `/api/v1/*`. Content-Type: `text/html`.
+
+Design principles for the UI live in [`ADR-009`](./ADR/ADR-009-Single-File-SPA.md).
 
 ---
 
 ## System endpoints
 
-### `GET /`
-
-Service banner.
-
-**Response 200 — `RootResponse`**
-
-```json
-{
-  "name": "TradingOS",
-  "version": "0.2.0",
-  "environment": "development",
-  "docs_url": "/docs",
-  "message": "TradingOS API is running."
-}
-```
-
 ### `GET /health`
 
-Liveness probe + database connectivity check.
-
-**Response 200 — `HealthResponse`**
-
-```json
-{
-  "status": "ok",
-  "database": "ok",
-  "timestamp": "2026-06-28T08:30:00Z"
-}
-```
-
-`status` is one of `ok` / `degraded` / `error`.
+Liveness + DB probe. Returns `status`, `database`, `timestamp`.
 
 ### `GET /version`
 
-Build and runtime metadata.
-
-**Response 200 — `VersionResponse`**
+Build metadata:
 
 ```json
 {
   "name": "TradingOS",
   "version": "0.2.0",
   "build": "Sprint-1",
-  "codename": "Market Ingest",
+  "codename": "Terminal",
   "environment": "development",
   "python": "3.12.7"
 }
+```
+
+### `GET /api/v1/info`
+
+JSON service banner. Formerly served at `/`; moved so the root URL can host the web UI.
+
+```json
+{ "name": "TradingOS", "version": "0.2.0", "environment": "development", "docs_url": "/docs", "message": "TradingOS API is running." }
 ```
 
 ---
 
 ## Webhooks
 
-### `POST /webhook/tradingview`
+### `POST /api/v1/webhook/tradingview`
 
-Ingest a TradingView alert. The minimum required payload is `ticker` and `action`; any additional fields are preserved in the stored `raw_payload`.
-
-**Optional authentication.** If `TRADINGVIEW_WEBHOOK_SECRET` is set, the request must include the header `X-Webhook-Secret: <value>`. When the env var is empty (default for local dev), the endpoint is open.
-
-**Request body**
+Ingest a TradingView alert. Body:
 
 ```json
 {
-  "ticker": "NIFTY",
-  "action": "buy",
-  "price": 22500.5,
-  "timeframe": "5m",
-  "strategy": "EMA-X",
-  "message": "Crossover up"
+  "symbol": "NIFTY",
+  "exchange": "NSE",
+  "signal": "BUY",
+  "price": 25182.50,
+  "timeframe": "15m",
+  "strategy": "EMA Breakout",
+  "timestamp": "2026-06-28T10:15:00Z"
 }
 ```
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `ticker` | string | yes | 1–50 chars. Normalised to upper-case. |
-| `action` | string | yes | 1–50 chars. Normalised to lower-case. |
-| `price` | number | no | Optional reference price. |
-| `timeframe` | string | no | Up to 20 chars (e.g. `5m`, `1h`). |
+| `symbol` | string | yes | 1–50 chars. Upper-cased. |
+| `exchange` | string | yes | 1–20 chars. Upper-cased. |
+| `signal` | string | yes | Must be `BUY` or `SELL`. |
+| `price` | number | yes | Must be > 0. |
+| `timeframe` | string | no | Up to 20 chars. |
 | `strategy` | string | no | Up to 100 chars. |
-| `message` | string | no | Free text. |
-| *(any extras)* | any | no | Preserved in the stored `raw_payload`. |
+| `timestamp` | ISO 8601 | no | Source timestamp. |
+| *(any extras)* | any | no | Preserved in stored `raw_payload`. |
 
-**Response 202 — `AlertCreated`**
+Optional auth via `X-Webhook-Secret` header when `TRADINGVIEW_WEBHOOK_SECRET` is configured.
+
+**Response 201 — `AlertCreated`** (with analysis attached):
 
 ```json
 {
   "id": 42,
-  "received_at": "2026-06-28T16:00:00.123456",
-  "status": "accepted"
+  "status": "analyzed",
+  "created_at": "2026-07-04T16:00:00.123456",
+  "analysis": {
+    "recommendation": "BUY",
+    "confidence": 74,
+    "risk": "MEDIUM",
+    "reasoning": ["EMA Breakout detected", "Trend is bullish", "Momentum positive", "Timeframe: 15m"],
+    "provider": "mock"
+  }
 }
 ```
 
-**Errors**
-
-| Status | When |
-|---|---|
-| 403 | Webhook secret is configured but the header is missing or wrong. |
-| 422 | Validation failure (missing `ticker`/`action`, empty strings, oversize fields). |
-
-**Example — `curl`**
-
-```bash
-curl -X POST http://localhost:8000/webhook/tradingview \
-  -H "Content-Type: application/json" \
-  -H "X-Webhook-Secret: $TRADINGVIEW_WEBHOOK_SECRET" \
-  -d '{"ticker":"NIFTY","action":"buy","price":22500,"timeframe":"5m"}'
-```
+Errors: 403 (bad secret), 422 (validation).
 
 ---
 
 ## Alerts
 
-### `GET /alerts`
+### `GET /api/v1/alerts`
 
-Paginated list of stored alerts, newest first.
+Paginated, newest-first list. Query params: `limit` (1–200, default 50), `offset`, `symbol`, `signal`, `source`, `status`.
 
-**Query parameters**
+Returns `AlertListOut` — see the OpenAPI docs at `/docs` for the full schema.
 
-| Name | Type | Default | Notes |
-|---|---|---|---|
-| `limit` | int | 50 | 1–200 |
-| `offset` | int | 0 | ≥ 0 |
-| `ticker` | string | — | Case-insensitive filter. |
-| `source` | string | — | E.g. `tradingview`. |
+### `GET /api/v1/alerts/recent`
 
-**Response 200 — `AlertListOut`**
+Most recent `limit` alerts (default 10, max 100). Returns `list[AlertOut]`.
 
-```json
-{
-  "items": [
-    {
-      "id": 42,
-      "source": "tradingview",
-      "ticker": "NIFTY",
-      "action": "buy",
-      "price": 22500.5,
-      "timeframe": "5m",
-      "strategy": "EMA-X",
-      "message": "Crossover up",
-      "received_at": "2026-06-28T16:00:00.123456",
-      "raw_payload": { "...": "..." }
-    }
-  ],
-  "total": 1,
-  "limit": 50,
-  "offset": 0
-}
-```
+### `GET /api/v1/alerts/{alert_id}`
 
-**Errors**
+Single alert with `analysis`. 404 on miss, 422 on non-integer id.
 
-| Status | When |
-|---|---|
-| 422 | Invalid pagination or filter parameter. |
+### `DELETE /api/v1/alerts/{alert_id}`
 
-### `GET /alerts/{alert_id}`
-
-Fetch a single alert by id.
-
-**Response 200 — `AlertOut`** — same shape as a single `items[]` entry above.
-
-**Errors**
-
-| Status | When |
-|---|---|
-| 404 | No alert with that id. |
-| 422 | `alert_id` is not an integer. |
+Deletes the alert. 204 on success, 404 on miss.
 
 ---
 
-## Conventions
+## Statistics
 
-- **Versioning** — system endpoints currently sit at the root. Versioned prefixing (`/v1/...`) is deferred until Sprint 3 per the agreed plan.
-- **Errors** — error responses currently use FastAPI's default envelope: `{"detail": "..."}`. A structured envelope ([RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)) is on the backlog (T-004).
-- **Auth** — system endpoints are open; the TradingView webhook supports an optional shared secret.
-- **Time** — all timestamps are UTC. Stored as naive UTC in SQLite; emitted as ISO 8601 in responses.
-- **Idempotency** — not implemented in Sprint 1. Re-posting the same payload creates a new alert row.
+### `GET /api/v1/statistics`
+
+Pipeline summary. Returns:
+
+```json
+{
+  "total_alerts": 128,
+  "buy_alerts": 82,
+  "sell_alerts": 46,
+  "latest_alert": { "id": 128, "symbol": "NIFTY", "signal": "SELL", "...": "..." },
+  "application_version": "0.2.0",
+  "build": "Sprint-1",
+  "codename": "Terminal"
+}
+```
+

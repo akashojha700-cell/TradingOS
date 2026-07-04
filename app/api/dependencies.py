@@ -1,9 +1,4 @@
-"""Reusable FastAPI dependencies.
-
-Dependencies live here so individual routers stay focused on their endpoints.
-Each function uses ``Depends(...)`` chaining and returns a fully-constructed
-collaborator — keeping the dependency injection wiring explicit and testable.
-"""
+"""Reusable FastAPI dependencies."""
 
 from __future__ import annotations
 
@@ -16,6 +11,7 @@ from app.config import Settings, get_settings
 from app.database import get_db
 from app.repositories.alert_repository import AlertRepository
 from app.services import SystemService
+from app.services.ai import AIProvider, get_ai_provider
 from app.services.alert_service import AlertService
 
 # ---- Foundational deps ---------------------------------------------------
@@ -35,7 +31,16 @@ SystemServiceDep = Annotated[SystemService, Depends(get_system_service)]
 """Convenience alias used by system routers."""
 
 
-# ---- Alert deps (Sprint 1) -----------------------------------------------
+# ---- AI provider deps ----------------------------------------------------
+def _get_ai_provider(settings: SettingsDep) -> AIProvider:
+    """Resolve the concrete :class:`AIProvider` from configuration."""
+    return get_ai_provider(settings)
+
+
+AIProviderDep = Annotated[AIProvider, Depends(_get_ai_provider)]
+
+
+# ---- Alert deps ----------------------------------------------------------
 def get_alert_repository(db: DBSessionDep) -> AlertRepository:
     """Provide an :class:`AlertRepository` bound to the request's DB session."""
     return AlertRepository(db=db)
@@ -44,9 +49,12 @@ def get_alert_repository(db: DBSessionDep) -> AlertRepository:
 AlertRepoDep = Annotated[AlertRepository, Depends(get_alert_repository)]
 
 
-def get_alert_service(repo: AlertRepoDep) -> AlertService:
-    """Provide an :class:`AlertService` over the request's repository."""
-    return AlertService(repo=repo)
+def get_alert_service(
+    repo: AlertRepoDep,
+    ai: AIProviderDep,
+) -> AlertService:
+    """Provide an :class:`AlertService` wired with a repo and an AI provider."""
+    return AlertService(repo=repo, ai=ai)
 
 
 AlertServiceDep = Annotated[AlertService, Depends(get_alert_service)]

@@ -17,6 +17,6 @@ VERSION: str = "0.2.0"
 BUILD: str = "Sprint-1"
 
 #: Human-readable release name. One-or-two words.
-CODENAME: str = "Market Ingest"
+CODENAME: str = "Terminal"
 
 __all__ = ["VERSION", "BUILD", "CODENAME"]

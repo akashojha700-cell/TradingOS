@@ -2,7 +2,7 @@
 
 Each sprint must end with a usable, demonstrable feature.
 
-## Sprint 0 — Project Foundation *(current)*
+## Sprint 0 — Project Foundation *(done, v0.1.0)*
 
 - FastAPI scaffold
 - Docker + docker-compose
@@ -11,19 +11,28 @@ Each sprint must end with a usable, demonstrable feature.
 - Structured logging
 - Documentation set
 
-**Exit criteria:** `docker compose up` returns 200 on `/`, `/health`, `/version`; pytest is green.
+**Exit criteria:** `docker compose up` returns 200 on `/`, `/health`, `/version`; pytest is green. ✅
 
-## Sprint 1 — Event Ingestion
+## Sprint 1 — Market Event Pipeline, AI Foundation & Terminal UI *(done, v0.2.0)*
 
-- TradingView webhook endpoint
-- Event storage (SQLite table)
-- Payload validation (Pydantic)
+- TradingView webhook under `/api/v1/webhook/tradingview` — normalized schema (`symbol`, `exchange`, `signal`, `price`, `timeframe`, `strategy`, `timestamp`)
+- Alert model + repository + service; deterministic mock AI provider behind `AIProvider` interface
+- `GET /api/v1/alerts`, `/alerts/recent`, `/alerts/{id}`, `DELETE /alerts/{id}`, `GET /api/v1/statistics`
+- `GET /api/v1/info` (JSON banner moved from `/`)
+- **Terminal UI at `/`** — six screens (Dashboard, Market Signals, Alert History, AI Analysis, Statistics, Settings) with the Simulate TradingView Alert form
+- Structured logging at every pipeline stage
+- 57 tests
 
-## Sprint 2 — AI Recommendation Engine
+**Exit criteria:** open browser → dashboard renders → simulate → alert stored → history + statistics update → Swagger still available. ✅
 
-- Local AI provider integration (Ollama first)
-- Prompt management (templates under `prompts/`)
-- Recommendation service producing structured output
+## Sprint 2 — Real AI Recommendation Engine
+
+- Ollama provider (default; local)
+- Prompt template loader under `prompts/`
+- Extended market-context builder (indicator snapshot, recent alerts)
+- Provider selection via env var (`AI_PROVIDER`, `AI_BASE_URL`, `AI_MODEL`)
+- Confidence + risk calibration harness
+- Alembic scaffolding alongside first schema change beyond `alerts`
 
 ## Sprint 3 — Notifications
 

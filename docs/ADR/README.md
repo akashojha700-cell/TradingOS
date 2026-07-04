@@ -22,6 +22,7 @@ A short, chronological log of every decision (including the ones that don't just
 | [ADR-002](./ADR-002-SQLite.md) | SQLite as the MVP Datastore | Accepted | 2026-06-28 |
 | [ADR-003](./ADR-003-AI-Provider-Abstraction.md) | AI Provider Abstraction | Accepted | 2026-06-28 |
 | [ADR-004](./ADR-004-Modular-Monolith.md) | Modular Monolith for the MVP | Accepted | 2026-06-28 |
+| [ADR-009](./ADR-009-Single-File-SPA.md) | Single-File React SPA served by FastAPI | Accepted | 2026-07-04 |
 
 ## Status legend
 

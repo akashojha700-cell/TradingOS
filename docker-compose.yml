@@ -1,6 +1,7 @@
 # ---------------------------------------------------------------------------
 # TradingOS - Local development orchestration
 # Run with:  docker compose up --build
+# Then open  http://localhost:8000
 # ---------------------------------------------------------------------------
 
 services:
@@ -16,9 +17,8 @@ services:
     env_file:
       - .env
     environment:
-      # Safe defaults if .env is missing
-      APP_NAME: ${APP_NAME:-TradingOS}
-      APP_VERSION: ${APP_VERSION:-0.1.0}
+      # Runtime overrides. Version metadata is sourced from app/version.py —
+      # do not duplicate it here.
       APP_ENV: ${APP_ENV:-development}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000

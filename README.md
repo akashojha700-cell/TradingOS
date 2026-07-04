@@ -1,30 +1,30 @@
 # TradingOS
 
 > An AI-powered Trading Operating System for Indian F&O.
+> **Decide what to trade today, and why.**
 
-TradingOS is an AI-first platform that helps traders identify, evaluate, monitor, and improve trading opportunities. The long-term goal is to ship an AI Trading Analyst that ranks high-quality trades with supporting evidence and continuously learns from historical performance.
-
-This repository contains the **Sprint 0 foundation** — FastAPI scaffold, configuration, structured logging, SQLite-backed persistence, Docker packaging, and documentation. No trading logic yet.
+TradingOS is an AI-first platform that helps traders identify, evaluate, and improve trading opportunities. Sprint 2 delivers a browser-open-and-use terminal-style UI on top of the Sprint 1 ingest + AI pipeline.
 
 ---
 
 ## Quickstart
 
-### Run with Docker (recommended)
+### With Docker (recommended)
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Then open:
+Then open **`http://localhost:8000`** — the TradingOS terminal UI loads immediately.
 
-- `http://localhost:8000/` — service banner
-- `http://localhost:8000/health` — liveness + DB probe
-- `http://localhost:8000/version` — build metadata
-- `http://localhost:8000/docs` — interactive OpenAPI docs
+- **Web app:** `http://localhost:8000/`
+- **Health:** `http://localhost:8000/health`
+- **Version:** `http://localhost:8000/version`
+- **JSON banner:** `http://localhost:8000/api/v1/info`
+- **Swagger (developer):** `http://localhost:8000/docs`
 
-### Run locally (no Docker)
+### Locally without Docker
 
 ```bash
 python -m venv .venv
@@ -34,11 +34,26 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-### Run the test suite
+### Run tests
 
 ```bash
 pytest
 ```
+
+---
+
+## What you can do in the UI
+
+| Screen | Purpose |
+|---|---|
+| **Dashboard** | Today's recommendation, latest signals, top stats, AI confidence |
+| **Market Signals** | Sortable, filterable table across every alert |
+| **Alert History** | Search, filter, delete, drill into detail |
+| **AI Analysis** | Reasoning, confidence, risk for any alert |
+| **Statistics** | BUY vs SELL, alerts over time, strategy distribution, hourly activity |
+| **Settings** | Read-only diagnostics — app version, DB, AI provider, health |
+
+Click **Simulate Alert** anywhere in the app to fire a TradingView-style alert through the real webhook — the pipeline runs end-to-end and you'll see the analysed result immediately.
 
 ---
 
@@ -48,18 +63,23 @@ pytest
 trading-os/
 ├── app/
 │   ├── api/           # FastAPI routers (versioned under v1/)
-│   ├── core/          # Logging, lifespan, cross-cutting primitives
+│   │   └── v1/        # webhooks, alerts, statistics, info (JSON), web (HTML SPA)
+│   ├── core/          # Logging, lifespan, constants
 │   ├── config/        # Pydantic settings (env-driven)
 │   ├── database/      # Engine, session, init_db
 │   ├── middleware/    # Request-ID middleware
-│   ├── models/        # ORM models (added from Sprint 1)
-│   ├── repositories/  # DB access (added from Sprint 1)
+│   ├── models/        # ORM models (Alert)
+│   ├── repositories/  # DB access (AlertRepository)
 │   ├── schemas/       # Pydantic request/response schemas
 │   ├── services/      # Business logic
-│   ├── utils/         # Shared utilities
+│   │   └── ai/        # AIProvider Protocol + MockAIProvider
+│   ├── utils/
+│   ├── web/           # index.html — single-file React SPA
+│   ├── version.py     # VERSION / BUILD / CODENAME (single source of truth)
 │   └── main.py        # FastAPI application factory
-├── docs/              # Architecture, roadmap, backlog, decisions, ...
-├── prompts/           # AI prompt templates (from Sprint 2)
+├── docs/              # Architecture, roadmap, ADRs, sprint records, ...
+├── governance/        # Canonical policy documents
+├── prompts/           # AI prompt templates (from Sprint 3)
 ├── scripts/           # Operational scripts
 ├── storage/           # SQLite database files (git-ignored)
 ├── logs/              # Application logs (git-ignored)
@@ -77,40 +97,33 @@ trading-os/
 
 ---
 
-## Sprint 0 — Done
+## Sprint status
 
-- FastAPI application with `/`, `/health`, `/version` endpoints
-- Pydantic-settings configuration with `.env` support
-- SQLite + SQLAlchemy 2.0 engine and session factory
-- Structured logging via `structlog`
-- Request-ID middleware with correlated log context
-- Dockerfile + docker-compose for one-command startup
-- Pytest suite covering all foundational endpoints
-- Documentation covering architecture, roadmap, decisions, and standards
-
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what's next.
+- **Sprint 0** — Foundation *(v0.1.0)*
+- **Sprint 1** — Market Event Pipeline, AI Foundation & Terminal UI *(v0.2.0 — current)*
+- Sprint 2 — Real AI Recommendation Engine (Ollama)
+- Sprint 3+ — see [`docs/ROADMAP.md`](docs/ROADMAP.md)
 
 ---
 
 ## Technology stack
 
 Python 3.12 · FastAPI · SQLite · SQLAlchemy 2.x · Pydantic v2 · structlog · Docker · pytest · uvicorn
+Frontend: React 18 (UMD) · Babel Standalone · Tailwind CSS · Chart.js — all via CDN, **no build step**.
 
-All free and open-source.
+All free and open-source. Architectural rationale in [`docs/ADR/`](docs/ADR/).
 
 ---
 
 ## Documentation index
 
 - [`docs/PROJECT_OVERVIEW.md`](docs/PROJECT_OVERVIEW.md) — vision, mission, MVP goal
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layered architecture, modules, AI provider interface
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — sprint plan from foundation through trade lifecycle
-- [`docs/BACKLOG.md`](docs/BACKLOG.md) — prioritised work items
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — architectural decision records
-- [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md) — Python style, testing, logging rules
-- [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) — branching, PR, review workflow
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — release history
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layered architecture, modules
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — sprint plan
+- [`docs/ADR/`](docs/ADR/) — architecture decision records
 - [`docs/API_SPEC.md`](docs/API_SPEC.md) — endpoint contracts
+- [`docs/CTO_NOTES.md`](docs/CTO_NOTES.md) — engineering journal
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — release history
 
 ## License
 

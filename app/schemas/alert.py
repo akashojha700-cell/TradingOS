@@ -1,96 +1,132 @@
 """Pydantic schemas for the Alert resource.
 
-These models describe the **wire shape** of alert-related requests and
-responses. They are deliberately separate from the ORM model so persistence
+Wire shapes for the ingest and read endpoints, plus the analysis payload
+returned by AI providers. Kept separate from the ORM model so persistence
 and API can evolve independently.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+# ---------------------------------------------------------------------------
+# Analysis payload — produced by AIProvider.analyze, stored on Alert.analysis
+# ---------------------------------------------------------------------------
+
+
+class AlertAnalysis(BaseModel):
+    """Structured output of an AI provider for a single alert."""
+
+    recommendation: Literal["BUY", "SELL", "HOLD"] = Field(
+        ..., description="Directional recommendation."
+    )
+    confidence: int = Field(
+        ..., ge=0, le=100, description="Confidence score, 0–100."
+    )
+    risk: Literal["LOW", "MEDIUM", "HIGH"] = Field(
+        ..., description="Categorical risk rating."
+    )
+    reasoning: list[str] = Field(
+        default_factory=list,
+        description="Ordered list of one-liner justifications.",
+    )
+    provider: str = Field(
+        default="mock",
+        description="Name of the AIProvider that generated this analysis.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Inbound TradingView webhook payload
+# ---------------------------------------------------------------------------
 
 
 class TradingViewAlertIn(BaseModel):
     """Inbound TradingView webhook payload.
 
-    TradingView's alert payloads are user-authored — fields are loosely typed
-    and the set of fields varies by user template. We accept a small required
-    surface (``ticker``, ``action``) and preserve everything else in the
-    stored ``raw_payload``.
+    Required: ``symbol``, ``exchange``, ``signal``, ``price``.
+    Optional fields cover the free-form parts of TradingView's alert template.
+    Unknown extra fields are allowed and preserved in the stored raw payload.
     """
 
-    ticker: str = Field(
-        ...,
-        min_length=1,
-        max_length=50,
-        description="Symbol the alert refers to (case-insensitive on input).",
-    )
-    action: str = Field(
-        ...,
-        min_length=1,
-        max_length=50,
-        description="Alert action keyword (e.g. 'buy', 'sell', 'alert').",
-    )
-    price: Optional[float] = Field(
-        default=None,
-        description="Optional reference price.",
-    )
-    timeframe: Optional[str] = Field(
-        default=None,
-        max_length=20,
-        description="Optional timeframe identifier (e.g. '5m').",
-    )
-    strategy: Optional[str] = Field(
-        default=None,
-        max_length=100,
-        description="Optional strategy name.",
-    )
-    message: Optional[str] = Field(
-        default=None,
-        description="Optional free-text message.",
+    symbol: str = Field(..., min_length=1, max_length=50)
+    exchange: str = Field(..., min_length=1, max_length=20)
+    signal: Literal["BUY", "SELL"]
+    price: float = Field(..., gt=0, description="Reference price. Must be > 0.")
+    timeframe: Optional[str] = Field(default=None, max_length=20)
+    strategy: Optional[str] = Field(default=None, max_length=100)
+    timestamp: Optional[datetime] = Field(
+        default=None, description="Timestamp reported by TradingView."
     )
 
-    # Unknown fields are allowed; they are preserved in the raw payload that
-    # the service stores alongside the validated subset.
     model_config = ConfigDict(extra="allow")
 
-    @field_validator("ticker")
+    @field_validator("symbol", mode="before")
     @classmethod
-    def _normalise_ticker(cls, value: str) -> str:
-        return value.strip().upper()
+    def _normalise_symbol(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
-    @field_validator("action")
+    @field_validator("exchange", mode="before")
     @classmethod
-    def _normalise_action(cls, value: str) -> str:
-        return value.strip().lower()
+    def _normalise_exchange(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
+
+    @field_validator("signal", mode="before")
+    @classmethod
+    def _normalise_signal(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
+
+
+# ---------------------------------------------------------------------------
+# Outbound alert representations
+# ---------------------------------------------------------------------------
+
+
+AlertStatus = Literal["pending", "analyzed", "notified", "archived"]
 
 
 class AlertOut(BaseModel):
-    """Outbound representation of a stored alert."""
+    """Full outbound representation of a stored alert."""
 
     id: int
     source: str
-    ticker: str
-    action: str
-    price: Optional[float] = None
+    symbol: str
+    exchange: str
+    signal: str
     timeframe: Optional[str] = None
     strategy: Optional[str] = None
-    message: Optional[str] = None
-    received_at: datetime
+    price: float
+    alert_timestamp: Optional[datetime] = None
     raw_payload: dict[str, Any]
+    analysis: Optional[AlertAnalysis] = None
+    status: AlertStatus
+    created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AlertCreated(BaseModel):
-    """Response payload returned from the webhook ingest endpoint."""
+    """Response payload for the webhook ingest endpoint.
+
+    Includes the mock/real AI analysis so callers see the pipeline result
+    without needing an additional GET.
+    """
 
     id: int = Field(..., description="Identifier of the newly-stored alert.")
-    received_at: datetime = Field(..., description="UTC ingest timestamp.")
-    status: str = Field(default="accepted", description="Ingest status marker.")
+    status: AlertStatus = Field(..., description="Lifecycle status after ingest.")
+    created_at: datetime = Field(..., description="UTC ingest timestamp.")
+    analysis: AlertAnalysis = Field(..., description="AI analysis generated at ingest.")
 
 
 class AlertListOut(BaseModel):
@@ -100,3 +136,15 @@ class AlertListOut(BaseModel):
     total: int = Field(..., description="Total matching rows (unfiltered by paging).")
     limit: int = Field(..., description="Page size used for this response.")
     offset: int = Field(..., description="Row offset used for this response.")
+
+
+class StatisticsOut(BaseModel):
+    """Summary statistics for the ingest pipeline."""
+
+    total_alerts: int
+    buy_alerts: int
+    sell_alerts: int
+    latest_alert: Optional[AlertOut] = None
+    application_version: str
+    build: str
+    codename: str

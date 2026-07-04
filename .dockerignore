@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# TradingOS - Docker build context exclusions
+# Keeps the image small and the build reproducible.
+# ---------------------------------------------------------------------------
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+pytest-cache-files-*/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Local editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets & runtime state — never bake into images
+.env
+.env.*
+!.env.example
+storage/*.db
+storage/*.db-journal
+storage/*.sqlite*
+logs/*.log
+logs/*.log.*
+
+# Documentation is version-controlled; ship it in the image so /docs and
+# governance references still work. Keep the folder.
+
+# Misc
+*.bak
+*.tmp
+*.pdf
