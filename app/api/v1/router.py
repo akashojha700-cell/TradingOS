@@ -13,7 +13,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1 import alerts, health, root, statistics, version, web, webhooks
+from app.api.v1 import (
+    alerts, chat, health, market, root, statistics, version, web, webhooks,
+)
 from app.core.constants import API_V1_PREFIX
 
 # ---- Root: HTML SPA -----------------------------------------------------
@@ -31,6 +33,8 @@ business_router.include_router(root.router)  # /api/v1/info (JSON banner)
 business_router.include_router(webhooks.router)
 business_router.include_router(alerts.router)
 business_router.include_router(statistics.router)
+business_router.include_router(market.router)
+business_router.include_router(chat.router)
 
 api_router = APIRouter()
 api_router.include_router(web_router)

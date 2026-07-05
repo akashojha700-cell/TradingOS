@@ -1,13 +1,4 @@
-"""TradingView webhook ingest — ``POST /api/v1/webhook/tradingview``.
-
-Accepts a JSON payload posted by a TradingView alert, validates it, persists
-it, runs the mock/real AI analysis, and returns 201 Created with the new
-alert id and the analysis attached.
-
-An optional shared secret may be configured via
-``TRADINGVIEW_WEBHOOK_SECRET``. When set, callers must include the
-``X-Webhook-Secret`` header with the matching value.
-"""
+"""TradingView webhook ingest — ``POST /api/v1/webhook/tradingview``."""
 
 from __future__ import annotations
 
@@ -26,7 +17,6 @@ def verify_webhook_secret(
     settings: SettingsDep,
     x_webhook_secret: str | None = Header(default=None, alias=HEADER_WEBHOOK_SECRET),
 ) -> None:
-    """Gate the webhook on an optional shared secret."""
     expected = settings.tradingview_webhook_secret
     if expected:
         if not x_webhook_secret or x_webhook_secret != expected:
@@ -44,8 +34,9 @@ def verify_webhook_secret(
     description=(
         "Accept a TradingView alert payload, validate the required fields "
         "(`symbol`, `exchange`, `signal`, `price`), persist the full payload "
-        "as an Alert, run the AI provider, and return 201 Created with the "
-        "new alert id and analysis attached."
+        "as an Alert, run the analysis pipeline (market context → prompt → "
+        "AI provider → JSON validation), and return 201 Created with the "
+        "analysis and intelligence-layer metadata attached."
     ),
     dependencies=[Depends(verify_webhook_secret)],
     responses={
@@ -59,29 +50,27 @@ async def receive_tradingview_alert(
     request: Request,
     service: AlertServiceDep,
 ) -> AlertCreated:
-    """Validate, persist, analyse, and acknowledge a TradingView alert."""
     logger.info(
         "webhook.received",
-        source="tradingview",
-        symbol=payload.symbol,
-        signal=payload.signal,
+        source="tradingview", symbol=payload.symbol, signal=payload.signal,
     )
-    # Payload has already been validated by FastAPI at this point.
-    logger.info("webhook.validated", symbol=payload.symbol, signal=payload.signal)
-
     raw: dict = await request.json()
     alert = service.ingest_tradingview(raw_payload=raw, parsed=payload)
 
     analysis = AlertAnalysis.model_validate(alert.analysis or {})
     logger.info(
         "webhook.response_returned",
-        alert_id=alert.id,
-        status=alert.status,
-        recommendation=analysis.recommendation,
+        alert_id=alert.id, status=alert.status,
+        recommendation=analysis.recommendation, ai_provider=alert.ai_provider,
     )
     return AlertCreated(
         id=alert.id,
         status=alert.status,  # type: ignore[arg-type]
         created_at=alert.created_at,
         analysis=analysis,
+        ai_provider=alert.ai_provider,
+        ai_model=alert.ai_model,
+        analysis_latency_ms=alert.analysis_latency_ms,
+        analysis_version=alert.analysis_version,
+        prompt_version=alert.prompt_version,
     )

@@ -1,7 +1,5 @@
 # ---------------------------------------------------------------------------
 # TradingOS - Python runtime dependencies
-# Pin lower bounds; CI resolves upper compatibility.
-# Keep this list lean. Only add libraries actually used by application code.
 # ---------------------------------------------------------------------------
 
 # Web framework + ASGI server
@@ -15,7 +13,7 @@ pydantic-settings==2.6.1
 # Database
 SQLAlchemy==2.0.36
 
-# HTTP client (used by future provider adapters)
+# HTTP client (used by Ollama provider + tests)
 httpx==0.28.1
 
 # Structured logging
@@ -23,6 +21,9 @@ structlog==24.4.0
 
 # Environment / configuration
 python-dotenv==1.0.1
+
+# Market data (v0.3 Intelligence Layer)
+yfinance==0.2.44
 
 # ---- Dev / test ----------------------------------------------------------
 pytest==8.3.4

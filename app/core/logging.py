@@ -15,20 +15,56 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from pathlib import Path
+from typing import Any, IO
 
 import structlog
 
 from app.config import get_settings
+
+#: Application log file. Written in addition to stdout so operators always have
+#: a persistent, greppable record (look for ``ai.ollama.raw_response`` /
+#: ``ai.ollama.validator_input`` / ``analysis.fallback_used``). Resolved from
+#: the project root so it is independent of the current working directory.
+LOG_DIR: Path = Path(__file__).resolve().parents[2] / "logs"
+LOG_FILE: Path = LOG_DIR / "tradingos.log"
+
+
+class _Tee:
+    """Minimal write-through stream that fans out to several file objects."""
+
+    def __init__(self, *streams: IO[str]) -> None:
+        self._streams = streams
+
+    def write(self, data: str) -> int:
+        for s in self._streams:
+            s.write(data)
+            s.flush()
+        return len(data)
+
+    def flush(self) -> None:
+        for s in self._streams:
+            s.flush()
 
 
 def configure_logging() -> None:
     """Configure stdlib ``logging`` and ``structlog`` for the whole process.
 
     Safe to call multiple times; structlog handles idempotency internally.
+    Logs are emitted to stdout AND appended to ``logs/tradingos.log``.
     """
     settings = get_settings()
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
+
+    # ---- Persistent log file (best-effort; never blocks startup) ---------
+    log_stream: Any = sys.stdout
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        _fh = open(LOG_FILE, "a", encoding="utf-8")  # noqa: SIM115 (process-lifetime handle)
+        log_stream = _Tee(sys.stdout, _fh)
+    except OSError:
+        # Read-only FS or permission issue — fall back to stdout only.
+        log_stream = sys.stdout
 
     # ---- Stdlib logging baseline ----------------------------------------
     logging.basicConfig(
@@ -61,7 +97,7 @@ def configure_logging() -> None:
         processors=[*shared_processors, renderer],
         wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.PrintLoggerFactory(file=log_stream),
         cache_logger_on_first_use=True,
     )
 

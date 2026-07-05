@@ -1,8 +1,9 @@
 """Application lifespan hooks.
 
-FastAPI's lifespan context allows us to run code on startup and shutdown.
-On startup we initialise the database, log a banner, and confirm the
-configuration is loaded. On shutdown we release resources.
+FastAPI's lifespan context runs code on startup and shutdown. Startup:
+initialise structured logging, ensure the database schema exists, emit a
+banner, and print the resolved AI provider config so operators can confirm
+their ``.env`` values landed correctly (e.g. Ollama host / model / timeout).
 """
 
 from __future__ import annotations
@@ -19,17 +20,7 @@ from app.database import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manage the application's startup and shutdown sequence.
-
-    Startup:
-        * Configure structured logging.
-        * Initialise the database (create tables if missing).
-        * Emit a startup banner with environment metadata.
-
-    Shutdown:
-        * Emit a shutdown log line. (Resource cleanup hooks land here as the
-          project grows.)
-    """
+    """Manage the application's startup and shutdown sequence."""
     configure_logging()
     logger = get_logger("tradingos.lifespan")
     settings = get_settings()
@@ -51,6 +42,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         debug=settings.app_debug,
         database_connected=db_ok,
         database_url=_redact_db_url(settings.database_url),
+    )
+
+    # Resolved AI provider config — logged loudly at INFO so any misconfigured
+    # env var (e.g. OLLAMA_TIMEOUT missing → default 60s applied) is spotted
+    # immediately on boot instead of much later when a request times out.
+    logger.info(
+        "ai.provider.configured",
+        provider=settings.ai_provider,
+        ollama_host=settings.ollama_host,
+        ollama_model=settings.ollama_model,
+        ollama_timeout_seconds=float(settings.ollama_timeout_seconds),
     )
 
     yield

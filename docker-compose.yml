@@ -17,14 +17,25 @@ services:
     env_file:
       - .env
     environment:
-      # Runtime overrides. Version metadata is sourced from app/version.py —
-      # do not duplicate it here.
       APP_ENV: ${APP_ENV:-development}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/storage/tradingos.db}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_JSON: ${LOG_JSON:-false}
+      # AI defaults so the container starts even without .env
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      # Canonical name (settings also accepts the legacy OLLAMA_TIMEOUT_SECONDS).
+      # Reasoning models are slow on modest hardware and stream nothing until
+      # done — give large headroom (observed ~124s generation → 300s budget).
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-300}
+    # On Linux, `host.docker.internal` is not resolved by default. This
+    # extra_hosts entry maps it to the container gateway so the Ollama
+    # provider works on every platform.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./storage:/app/storage
       - ./logs:/app/logs

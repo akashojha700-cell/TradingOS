@@ -1,0 +1,28 @@
+=== 2026-07-04T23:19:04Z  host=http://x:11434  model=qwen3.6:thinking  latency_ms=0  selected_field=response  prompt_tokens=5  completion_tokens=8 ===
+[RESPONSE]
+{"recommendation":"BUY","confidence":72}
+
+[THINKING]
+(empty)
+
+=== 2026-07-04T23:19:04Z  host=http://x:11434  model=qwen3.6:thinking  latency_ms=0  selected_field=thinking  prompt_tokens=7  completion_tokens=0  thinking_tokens=42 ===
+[RESPONSE]
+(empty)
+
+[THINKING]
+{"recommendation":"BUY","confidence":80}
+
+=== 2026-07-04T23:19:04Z  host=http://x:11434  model=qwen3.6:thinking  latency_ms=0  selected_field=empty  prompt_tokens=3  completion_tokens=0 ===
+[RESPONSE]
+(empty)
+
+[THINKING]
+(empty)
+
+=== 2026-07-04T23:19:04Z  host=http://x:11434  model=qwen3.6:thinking  latency_ms=0  selected_field=response  prompt_tokens=0  completion_tokens=0 ===
+[RESPONSE]
+{"recommendation":"BUY","confidence":50}
+
+[THINKING]
+(empty)
+

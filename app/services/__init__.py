@@ -1,10 +1,14 @@
-"""Service layer package.
-
-Services hold business logic and orchestrate repositories. The presentation
-and API layers depend on services; services never reach up to the API layer.
-"""
+"""Service layer package."""
 
 from app.services.alert_service import AlertNotFoundError, AlertService
+from app.services.analysis_service import ANALYSIS_VERSION, AnalysisResult, AnalysisService
 from app.services.system_service import SystemService
 
-__all__ = ["SystemService", "AlertService", "AlertNotFoundError"]
+__all__ = [
+    "SystemService",
+    "AlertService",
+    "AlertNotFoundError",
+    "AnalysisService",
+    "AnalysisResult",
+    "ANALYSIS_VERSION",
+]
